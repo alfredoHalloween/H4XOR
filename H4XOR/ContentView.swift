@@ -6,16 +6,25 @@
 //
 
 import SwiftUI
+import Observation
 
 struct ContentView: View {
+    
+    @State private var viewModel = PostViewModel()
+    
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        NavigationView {
+            List(viewModel.posts) { post in
+                HStack {
+                    Text(String(post.points))
+                    Text(post.title)
+                }
+            }
+            .navigationTitle("H4XOR News")
         }
-        .padding()
+        .task {
+            await viewModel.fetchPosts()
+        }
     }
 }
 
