@@ -28,7 +28,7 @@ El `NetworkManager` actual solo hace GET, no valida códigos HTTP y está instan
 
 **Out of scope (para futuras specs):**
 
-- Cambiar el endpoint de `http://` a `https://` o agregar excepciones ATS (seguimos en fase de pruebas).
+- Excepciones de ATS (con `https://` no hacen falta).
 - Headers globales, autenticación e interceptores.
 - Bodies form-urlencoded o multipart, y respuestas como `Data` cruda.
 - Stubs con `URLProtocol` para probar `URLSession` de punta a punta.
@@ -114,7 +114,7 @@ extension Results { static let dummy: Results }                       // hits = 
 
 // H4XOR/Models/PostEndpoint.swift
 enum PostEndpoint: Endpoint {
-    case frontPage   // http://hn.algolia.com /api/v1/search ?tags=front_page
+    case frontPage   // https://hn.algolia.com /api/v1/search ?tags=front_page
 }
 
 // H4XOR/Models/PostViewModel.swift
@@ -144,7 +144,7 @@ Convenciones:
 3. Crear `H4XOR/Networking/NetworkClient.swift`. Mover `NetworkManager.swift` de `Models/` a `Networking/`, reescribirlo conforme a `NetworkClient` con `validate(data:response:)`, decodificar con `ResponseDecoder` y borrar el código antiguo comentado. Crear `H4XOR/Models/PostEndpoint.swift` y migrar `PostDataManager` a inyección + `PostEndpoint.frontPage`. La app compila y se comporta igual que antes.
 4. Crear `H4XOR/Networking/Mocks/MockNetworkClient.swift`, que también decodifica con `ResponseDecoder`, con formas de pasar datos mockeados: string JSON, archivo `.json` de un bundle u objeto dummy `Encodable`. Pasar `Results` y `Post` a `Codable`. Crear `Mocks/PostData+Dummy.swift` y `Mocks/JSON/front_page.json`. Compila y `front_page.json` aparece en `H4XOR.app`.
 5. Agregar `LoadState` e inyección a `PostViewModel`. Quitar `try?`: en `catch` pasa a `.failed(message:)`. Al cargar pasa a `.loaded(hits)` y se elimina la propiedad `posts`. Agregar `Equatable` a `Post`. `ContentView` lee los posts desde `.loaded` con un puente temporal hasta el paso 6. Compila.
-6. Actualizar `ContentView`: `ProgressView` en `.loading`, lista en `.loaded`, `ContentUnavailableView` con botón "Reintentar" en `.failed`. Cambiar `#Preview` para usar `MockNetworkClient` con un JSON de ejemplo. Prueba manual: el preview muestra posts sin red. En el simulador se ve el estado de error, porque el `http://` sigue bloqueado por ATS.
+6. Actualizar `ContentView`: `ProgressView` en `.loading`, lista en `.loaded`, `ContentUnavailableView` con botón "Reintentar" en `.failed`. Agregar dos previews con `MockNetworkClient`: "Posts (mock)" con `front_page.json` y "Error (mock)" con `error: .invalidResponse`. Prueba manual: ambos previews funcionan sin red. En el simulador la app carga la portada real.
 7. Agregar el target de tests `H4XORTests` (unit-test bundle, host `H4XOR`) en `H4XOR.xcodeproj/project.xcproj`, con la carpeta `H4XORTests/` vinculada como folder. Incluirlo en la acción de test del scheme. Crear un test trivial con Swift Testing. `xcodebuild test` pasa.
 8. Escribir los tests en `H4XORTests/`:
    - `EndpointTests`: método, URL con query, headers por defecto y body JSON.
@@ -153,7 +153,7 @@ Convenciones:
    - `MockNetworkClientTests`: cada forma de pasar datos (string, `front_page.json`, `Results.dummy`) decodifica lo esperado; un archivo inexistente lanza `fileNotFound`; `error` configurado se lanza y la petición queda registrada.
    - `PostDataManagerTests`: decodifica con el mock y registra un GET a `/api/v1/search?tags=front_page`.
    - `PostViewModelTests`: termina en `.loaded` con posts; error → `.failed`; dos cargas no duplican posts.
-9. Actualizar `CLAUDE.md`: nueva capa `Networking/`, decodificación fuera del main actor (los modelos de respuesta deben ser `nonisolated` y `Sendable`), target `H4XORTests`, comando `xcodebuild test` y la nota sobre que el error ya no es silencioso.
+9. Actualizar `CLAUDE.md`: nueva capa `Networking/`, decodificación fuera del main actor (los modelos de respuesta deben ser `nonisolated` y `Sendable`), target `H4XORTests`, comando `xcodebuild test` y la nota sobre que el error ya no es silencioso. Reemplazar la nota sobre `http://` y ATS: el endpoint ahora usa `https://`.
 
 ## Acceptance criteria
 
@@ -175,9 +175,9 @@ Convenciones:
 - [ ] `PostViewModel` no tiene una propiedad `posts`; los posts solo se obtienen de `LoadState.loaded([Post])`.
 - [ ] Llamar `fetchPosts()` dos veces con el mock deja el mismo número de posts que una sola llamada.
 - [ ] El `#Preview` de `ContentView` muestra posts del mock sin acceso a red.
-- [ ] En el simulador, con el endpoint `http://`, la app muestra `ContentUnavailableView` con botón "Reintentar" en lugar de una lista vacía.
+- [ ] El preview "Error (mock)" de `ContentView` muestra `ContentUnavailableView` con el mensaje de error y el botón "Reintentar".
 - [ ] `H4XOR/Models/NetworkManager.swift` ya no existe y no queda código comentado antiguo.
-- [ ] El endpoint sigue siendo `http://hn.algolia.com`.
+- [ ] `PostEndpoint.frontPage` usa `https://hn.algolia.com`.
 
 ## Decisions
 
@@ -197,7 +197,10 @@ Convenciones:
 - **Sí:** los posts viajan como valor asociado de `.loaded([Post])`. Una sola fuente de verdad: no puede haber `state == .failed` con posts viejos visibles. (Cambio pedido durante el paso 5.)
 - **No:** `state` y `posts` como propiedades separadas. Obliga a la vista a leer dos cosas que pueden quedar desincronizadas.
 - **Sí:** Swift Testing en un nuevo target `H4XORTests`. Es el estándar moderno y encaja con async/await.
-- **Sí:** mantener `http://`. Seguimos en fase de pruebas; el simulador mostrará el estado de error.
+- **Sí:** migrar el endpoint a `https://hn.algolia.com`. Algolia lo soporta y evita depender de ATS. (Cambio hecho durante el paso 6; originalmente estaba fuera de alcance.)
+- **No:** mantener `http://` con una excepción ATS. No hay motivo para conservar tráfico sin cifrar.
+- **Sí:** verificar el estado de error con el preview "Error (mock)" y `PostViewModelTests`. Con el endpoint funcionando en el simulador, el error no aparece de forma natural. (Cambio de criterio durante el paso 6.)
+- **No:** verificar el error en el simulador sin conexión. Es manual y depende del entorno.
 - **Sí:** borrar la implementación antigua comentada. Queda en el historial de git.
 - **Sí:** mantener el nombre `NetworkManager` para la implementación real. Minimiza la sorpresa al leer el código.
 - **Sí:** decodificar fuera del main actor con una función `@concurrent` en `ResponseDecoder`. Con respuestas grandes, decodificar en el main actor bloquearía la UI.
@@ -221,11 +224,11 @@ Convenciones:
 | Un modelo de respuesta nuevo sin `nonisolated` produce el error "main actor-isolated conformance cannot be used in nonisolated context" | La restricción `Decodable & Sendable` lo detecta al compilar. La convención queda documentada en `CLAUDE.md`. |
 | `JSONDecoder` no fuera `Sendable` en el SDK usado | `ResponseDecoder` puede crear su `JSONDecoder` dentro de `decode` en lugar de guardarlo, si el compilador lo exige. |
 | `any Encodable` y el aislamiento al main actor pueden producir avisos de concurrencia | La construcción de la `URLRequest` y la codificación del body se quedan en el main actor. |
-| Con `http://` la app real nunca carga datos | Es intencional en esta fase. La UI muestra el error y el preview usa el mock. |
+| Con el endpoint real funcionando, el estado de error no se ve en el simulador | Se verifica con el preview "Error (mock)" y con tests. |
 
 ## What is **not** in this spec
 
-- Migración a `https://` o excepciones ATS.
+- Excepciones de ATS.
 - Autenticación, headers globales e interceptores.
 - Form-urlencoded, multipart y respuestas `Data`.
 - Tests con `URLProtocol`.

@@ -9,7 +9,7 @@ import Foundation
 enum PostEndpoint: Endpoint {
     case frontPage
 
-    var baseURL: String { "http://hn.algolia.com" }
+    var baseURL: String { "https://hn.algolia.com" }
 
     var path: String {
         switch self {
