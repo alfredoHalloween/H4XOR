@@ -1,6 +1,6 @@
 # SPEC 01 — Network manager genérico y mockeable
 
-> **Status:** Aprobado
+> **Status:** Implementado
 > **Depends on:** —
 > **Date:** 2026-11-21
 > **Objective:** Reemplazar `NetworkManager` por un cliente HTTP basado en un protocolo `Endpoint`, que soporte GET/POST/PUT/PATCH/DELETE, se pueda mockear vía el protocolo `NetworkClient` y esté cubierto por tests.
@@ -157,27 +157,27 @@ Convenciones:
 
 ## Acceptance criteria
 
-- [ ] `xcodebuild -project H4XOR.xcodeproj -scheme H4XOR -destination 'generic/platform=iOS Simulator' build` termina sin errores.
-- [ ] `xcodebuild test -project H4XOR.xcodeproj -scheme H4XOR -destination 'platform=iOS Simulator,name=<dispositivo>'` ejecuta los tests de `H4XORTests` y todos pasan.
-- [ ] `HTTPMethod` tiene exactamente los casos `get`, `post`, `put`, `patch`, `delete`.
-- [ ] Un `Endpoint` con body produce una `URLRequest` con `httpBody` JSON y `Content-Type: application/json`.
-- [ ] `NetworkManager.validate` lanza `NetworkError.httpStatus` para cualquier código fuera de `200..<300`.
-- [ ] `NetworkClient` expone un `request` que devuelve `Decodable & Sendable` y otro sin valor de retorno.
-- [ ] `ResponseDecoder.decode` está marcado `@concurrent`, y `NetworkManager` y `MockNetworkClient` decodifican exclusivamente a través de él.
-- [ ] `MockNetworkClient` acepta datos mockeados como string JSON (`init(json:)`), archivo de un bundle (`init(jsonFile:bundle:)`) y objeto dummy (`init(response:)`), y cada forma tiene su método `respond(...)` equivalente.
-- [ ] `init(jsonFile:)` con un nombre inexistente lanza `MockNetworkClient.MockDataError.fileNotFound`.
-- [ ] `front_page.json` está en la raíz de `H4XOR.app` y `MockNetworkClient(jsonFile: "front_page")` decodifica 3 posts.
-- [ ] El test de `DecodingThreadProbe` confirma que `init(from:)` se ejecuta fuera del hilo principal aunque la llamada parta del main actor.
-- [ ] `Results` y `Post` están declarados `nonisolated` y `Sendable`.
-- [ ] La compilación no muestra avisos de concurrencia en los archivos de `H4XOR/Networking/` ni en `PostData.swift`.
-- [ ] `PostDataManager` y `PostViewModel` reciben sus dependencias por init con valores por defecto.
-- [ ] `PostViewModel` no contiene `try?`.
-- [ ] `PostViewModel` no tiene una propiedad `posts`; los posts solo se obtienen de `LoadState.loaded([Post])`.
-- [ ] Llamar `fetchPosts()` dos veces con el mock deja el mismo número de posts que una sola llamada.
-- [ ] El `#Preview` de `ContentView` muestra posts del mock sin acceso a red.
-- [ ] El preview "Error (mock)" de `ContentView` muestra `ContentUnavailableView` con el mensaje de error y el botón "Reintentar".
-- [ ] `H4XOR/Models/NetworkManager.swift` ya no existe y no queda código comentado antiguo.
-- [ ] `PostEndpoint.frontPage` usa `https://hn.algolia.com`.
+- [X] `xcodebuild -project H4XOR.xcodeproj -scheme H4XOR -destination 'generic/platform=iOS Simulator' build` termina sin errores.
+- [X] `xcodebuild test -project H4XOR.xcodeproj -scheme H4XOR -destination 'platform=iOS Simulator,name=<dispositivo>'` ejecuta los tests de `H4XORTests` y todos pasan.
+- [X] `HTTPMethod` tiene exactamente los casos `get`, `post`, `put`, `patch`, `delete`.
+- [X] Un `Endpoint` con body produce una `URLRequest` con `httpBody` JSON y `Content-Type: application/json`.
+- [X] `NetworkManager.validate` lanza `NetworkError.httpStatus` para cualquier código fuera de `200..<300`.
+- [X] `NetworkClient` expone un `request` que devuelve `Decodable & Sendable` y otro sin valor de retorno.
+- [X] `ResponseDecoder.decode` está marcado `@concurrent`, y `NetworkManager` y `MockNetworkClient` decodifican exclusivamente a través de él.
+- [X] `MockNetworkClient` acepta datos mockeados como string JSON (`init(json:)`), archivo de un bundle (`init(jsonFile:bundle:)`) y objeto dummy (`init(response:)`), y cada forma tiene su método `respond(...)` equivalente.
+- [X] `init(jsonFile:)` con un nombre inexistente lanza `MockNetworkClient.MockDataError.fileNotFound`.
+- [X] `front_page.json` está en la raíz de `H4XOR.app` y `MockNetworkClient(jsonFile: "front_page")` decodifica 3 posts.
+- [X] El test de `DecodingThreadProbe` confirma que `init(from:)` se ejecuta fuera del hilo principal aunque la llamada parta del main actor.
+- [X] `Results` y `Post` están declarados `nonisolated` y `Sendable`.
+- [X] La compilación no muestra avisos de concurrencia en los archivos de `H4XOR/Networking/` ni en `PostData.swift`.
+- [X] `PostDataManager` y `PostViewModel` reciben sus dependencias por init con valores por defecto.
+- [X] `PostViewModel` no contiene `try?`.
+- [X] `PostViewModel` no tiene una propiedad `posts`; los posts solo se obtienen de `LoadState.loaded([Post])`.
+- [X] Llamar `fetchPosts()` dos veces con el mock deja el mismo número de posts que una sola llamada.
+- [X] El `#Preview` de `ContentView` muestra posts del mock sin acceso a red.
+- [X] El preview "Error (mock)" de `ContentView` muestra `ContentUnavailableView` con el mensaje de error y el botón "Reintentar".
+- [X] `H4XOR/Models/NetworkManager.swift` ya no existe y no queda código comentado antiguo.
+- [X] `PostEndpoint.frontPage` usa `https://hn.algolia.com`.
 
 ## Decisions
 
