@@ -96,7 +96,21 @@ final class MockNetworkClient: NetworkClient {
     var responseData: Data = Data()            // JSON que se decodificará con ResponseDecoder (también fuera del main actor)
     var error: NetworkError?                   // si no es nil, se lanza
     private(set) var receivedRequests: [URLRequest] = [] // registro para asserts
+    enum MockDataError: Error { case fileNotFound(name: String) }
+
+    // Formas de pasar datos mockeados (init de conveniencia + método equivalente para reconfigurar):
+    convenience init(json: String)                                  // respond(withJSON:)
+    convenience init(jsonFile name: String, bundle: Bundle = .main) throws // respond(withJSONFile:bundle:)
+    convenience init(response: some Encodable, encoder: JSONEncoder = JSONEncoder()) throws // respond(with:encoder:)
+    // Los objetos dummy se codifican a JSON para que la respuesta siga pasando por ResponseDecoder.
 }
+
+// H4XOR/Networking/Mocks/PostData+Dummy.swift
+extension Post { static let dummy: Post; static let dummies: [Post] }  // 3 posts
+extension Results { static let dummy: Results }                       // hits = Post.dummies
+
+// H4XOR/Networking/Mocks/JSON/front_page.json
+// Respuesta de Algolia reducida (3 hits). Se copia sola a la raíz del bundle de la app.
 
 // H4XOR/Models/PostEndpoint.swift
 enum PostEndpoint: Endpoint {
@@ -114,7 +128,7 @@ Cambios en tipos existentes:
 - `PostDataManager`: `init(client: any NetworkClient = NetworkManager())`. `fetchPosts()` llama a `client.request(PostEndpoint.frontPage)`.
 - `PostViewModel`: `init(dataManager: PostDataManager = PostDataManager())`, `private(set) var state: LoadState = .idle`. `fetchPosts()` **reemplaza** `posts` en lugar de agregar.
 - `ContentView`: `init(viewModel: PostViewModel = PostViewModel())` guardado en `@State`.
-- `Results` y `Post` pasan a `nonisolated struct ... : Decodable, Sendable`. Sin esto su conformidad a `Decodable` queda aislada al main actor y no se puede usar desde `ResponseDecoder`. Sus campos no cambian.
+- `Results` y `Post` pasan a `nonisolated struct ... : Codable, Sendable`. Sin `nonisolated` su conformidad a `Decodable` queda aislada al main actor y no se puede usar desde `ResponseDecoder`. `Codable` (en lugar de `Decodable`) permite pasarlos como objetos dummy al mock. Sus campos no cambian.
 
 Convenciones:
 
@@ -127,7 +141,7 @@ Convenciones:
 1. Crear `H4XOR/Networking/HTTPMethod.swift`, `NetworkError.swift` y `Endpoint.swift` (protocolo, defaults y `makeURLRequest`). Nada los usa todavía. Compila.
 2. Crear `H4XOR/Networking/ResponseDecoder.swift` con `decode` marcado `@concurrent`. Marcar `Results` y `Post` como `nonisolated` y `Sendable` en `PostData.swift`. Nada usa `ResponseDecoder` todavía. Compila sin avisos de concurrencia.
 3. Crear `H4XOR/Networking/NetworkClient.swift`. Mover `NetworkManager.swift` de `Models/` a `Networking/`, reescribirlo conforme a `NetworkClient` con `validate(data:response:)`, decodificar con `ResponseDecoder` y borrar el código antiguo comentado. Crear `H4XOR/Models/PostEndpoint.swift` y migrar `PostDataManager` a inyección + `PostEndpoint.frontPage`. La app compila y se comporta igual que antes.
-4. Crear `H4XOR/Networking/Mocks/MockNetworkClient.swift`, que también decodifica con `ResponseDecoder`. Compila.
+4. Crear `H4XOR/Networking/Mocks/MockNetworkClient.swift`, que también decodifica con `ResponseDecoder`, con formas de pasar datos mockeados: string JSON, archivo `.json` de un bundle u objeto dummy `Encodable`. Pasar `Results` y `Post` a `Codable`. Crear `Mocks/PostData+Dummy.swift` y `Mocks/JSON/front_page.json`. Compila y `front_page.json` aparece en `H4XOR.app`.
 5. Agregar `LoadState` e inyección a `PostViewModel`. Quitar `try?`: en `catch` pasa a `.failed(message:)`. Al cargar reemplaza `posts`. Compila.
 6. Actualizar `ContentView`: `ProgressView` en `.loading`, lista en `.loaded`, `ContentUnavailableView` con botón "Reintentar" en `.failed`. Cambiar `#Preview` para usar `MockNetworkClient` con un JSON de ejemplo. Prueba manual: el preview muestra posts sin red. En el simulador se ve el estado de error, porque el `http://` sigue bloqueado por ATS.
 7. Agregar el target de tests `H4XORTests` (unit-test bundle, host `H4XOR`) en `H4XOR.xcodeproj/project.xcproj`, con la carpeta `H4XORTests/` vinculada como folder. Incluirlo en la acción de test del scheme. Crear un test trivial con Swift Testing. `xcodebuild test` pasa.
@@ -135,6 +149,7 @@ Convenciones:
    - `EndpointTests`: método, URL con query, headers por defecto y body JSON.
    - `ResponseDecoderTests`: decodifica un JSON válido; un JSON inválido lanza `NetworkError.decoding`; un tipo sonda `nonisolated struct DecodingThreadProbe: Decodable, Sendable` registra `Thread.isMainThread` en su `init(from:)`, y al decodificarlo desde un test `@MainActor` el valor es `false`.
    - `NetworkManagerValidationTests`: 2xx devuelve los datos, 404 lanza `httpStatus`, una respuesta no HTTP lanza `invalidResponse`.
+   - `MockNetworkClientTests`: cada forma de pasar datos (string, `front_page.json`, `Results.dummy`) decodifica lo esperado; un archivo inexistente lanza `fileNotFound`; `error` configurado se lanza y la petición queda registrada.
    - `PostDataManagerTests`: decodifica con el mock y registra un GET a `/api/v1/search?tags=front_page`.
    - `PostViewModelTests`: termina en `.loaded` con posts; error → `.failed`; dos cargas no duplican posts.
 9. Actualizar `CLAUDE.md`: nueva capa `Networking/`, decodificación fuera del main actor (los modelos de respuesta deben ser `nonisolated` y `Sendable`), target `H4XORTests`, comando `xcodebuild test` y la nota sobre que el error ya no es silencioso.
@@ -148,6 +163,9 @@ Convenciones:
 - [ ] `NetworkManager.validate` lanza `NetworkError.httpStatus` para cualquier código fuera de `200..<300`.
 - [ ] `NetworkClient` expone un `request` que devuelve `Decodable & Sendable` y otro sin valor de retorno.
 - [ ] `ResponseDecoder.decode` está marcado `@concurrent`, y `NetworkManager` y `MockNetworkClient` decodifican exclusivamente a través de él.
+- [ ] `MockNetworkClient` acepta datos mockeados como string JSON (`init(json:)`), archivo de un bundle (`init(jsonFile:bundle:)`) y objeto dummy (`init(response:)`), y cada forma tiene su método `respond(...)` equivalente.
+- [ ] `init(jsonFile:)` con un nombre inexistente lanza `MockNetworkClient.MockDataError.fileNotFound`.
+- [ ] `front_page.json` está en la raíz de `H4XOR.app` y `MockNetworkClient(jsonFile: "front_page")` decodifica 3 posts.
 - [ ] El test de `DecodingThreadProbe` confirma que `init(from:)` se ejecuta fuera del hilo principal aunque la llamada parta del main actor.
 - [ ] `Results` y `Post` están declarados `nonisolated` y `Sendable`.
 - [ ] La compilación no muestra avisos de concurrencia en los archivos de `H4XOR/Networking/` ni en `PostData.swift`.
@@ -182,6 +200,11 @@ Convenciones:
 - **No:** convertir `NetworkManager` en un `actor`. Serializaría todas las peticiones y obligaría a cruzar actores para cada llamada; basta con sacar solo la decodificación.
 - **No:** `Task.detached` para decodificar. `@concurrent` expresa la misma intención con concurrencia estructurada y sin perder la cancelación.
 - **Sí:** el mock también decodifica con `ResponseDecoder`. Así los tests ejercitan el mismo camino de concurrencia que la implementación real.
+- **Sí:** el mock acepta datos como string JSON, archivo `.json` u objeto dummy. Cubre previews rápidos, respuestas reales capturadas y datos construidos en código. (Agregado durante la implementación del paso 4.)
+- **Sí:** los objetos dummy se codifican a JSON y se vuelven a decodificar. Mantiene un único camino de decodificación, a costa de que los modelos sean `Codable`.
+- **No:** devolver el objeto dummy tal cual con un cast a `T`. No exige `Codable`, pero el mock dejaría de pasar por `ResponseDecoder`.
+- **Sí:** los `.json` de mock viven en `H4XOR/Networking/Mocks/JSON/` (bundle de la app), con un parámetro `bundle` para que los tests usen el suyo. Así sirven para previews y tests.
+- **No:** `.json` solo en el target de tests. Los previews no podrían usarlos.
 - **Sí:** exigir `T: Decodable & Sendable` y modelos `nonisolated`. El resultado cruza de vuelta al main actor, y con aislamiento por defecto en el main actor la conformidad a `Decodable` no sería usable fuera de él.
 - **No:** codificar el body fuera del main actor. Los bodies son pequeños y no justifican la complejidad extra.
 

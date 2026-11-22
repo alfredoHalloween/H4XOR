@@ -7,11 +7,11 @@
 
 import Foundation
 
-nonisolated struct Results: Decodable, Sendable {
+nonisolated struct Results: Codable, Sendable {
     let hits: [Post]
 }
 
-nonisolated struct Post: Decodable, Identifiable, Sendable {
+nonisolated struct Post: Codable, Identifiable, Sendable {
     var id: String {
         return objectID
     }

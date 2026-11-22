@@ -1,0 +1,30 @@
+{
+  "hits": [
+    {
+      "objectID": "40000001",
+      "points": 512,
+      "title": "A new approach to structured concurrency",
+      "url": "https://example.com/structured-concurrency",
+      "author": "alice",
+      "num_comments": 128
+    },
+    {
+      "objectID": "40000002",
+      "points": 301,
+      "title": "Show HN: I built a Hacker News client in SwiftUI",
+      "url": "https://example.com/hn-swiftui",
+      "author": "bob",
+      "num_comments": 64
+    },
+    {
+      "objectID": "40000003",
+      "points": 97,
+      "title": "Ask HN: What are you working on?",
+      "url": null,
+      "author": "carol",
+      "num_comments": 210
+    }
+  ],
+  "nbHits": 3,
+  "page": 0
+}
