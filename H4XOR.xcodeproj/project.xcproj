@@ -62,16 +62,15 @@
         "SWIFT_VERSION": "5.0",
         "TARGETED_DEVICE_FAMILY": "1,2",
       },
-    },
-    {
+    }, {
       "name": "H4XORTests",
       "id": "26E73A7230B11EA1006C7723",
       "product": "Products/H4XORTests.xctest",
       "product-type": "bundle.unit-test",
+      "test-host-target": "H4XOR",
       "dependencies": [
         "H4XOR",
       ],
-      "test-host-target": "H4XOR",
       "build-phases": [
         "compile-sources",
         "frameworks",
