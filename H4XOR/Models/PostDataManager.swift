@@ -6,10 +6,14 @@
 //
 
 final class PostDataManager {
-    
-    private let networkManager = NetworkManager()
-    
+
+    private let client: any NetworkClient
+
+    init(client: any NetworkClient = NetworkManager()) {
+        self.client = client
+    }
+
     func fetchPosts() async throws -> Results {
-        return try await networkManager.fetchData(url: "http://hn.algolia.com/api/v1/search?tags=front_page")
+        return try await client.request(PostEndpoint.frontPage)
     }
 }
