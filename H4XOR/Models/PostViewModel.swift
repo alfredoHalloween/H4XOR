@@ -8,16 +8,34 @@
 import Foundation
 import Observation
 
+/// Estado de la carga de posts.
+enum LoadState: Equatable {
+    case idle
+    case loading
+    case loaded([Post])
+    case failed(message: String)
+}
+
 @Observable
 final class PostViewModel {
-    
-    var posts: [Post] = []
-    private let dataManager = PostDataManager()
-    
+
+    private(set) var state: LoadState = .idle
+
+    private let dataManager: PostDataManager
+
+    init(dataManager: PostDataManager = PostDataManager()) {
+        self.dataManager = dataManager
+    }
+
+    /// Carga la portada. Los posts viajan dentro de `.loaded`, así que cada carga
+    /// reemplaza los anteriores y reintentar no duplica resultados.
     func fetchPosts() async {
-        let results = try? await dataManager.fetchPosts()
-        if let results = results {
-            posts.append(contentsOf: results.hits)
+        state = .loading
+        do {
+            let results = try await dataManager.fetchPosts()
+            state = .loaded(results.hits)
+        } catch {
+            state = .failed(message: error.localizedDescription)
         }
     }
 }

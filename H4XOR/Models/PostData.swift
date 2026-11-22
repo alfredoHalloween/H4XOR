@@ -11,7 +11,7 @@ nonisolated struct Results: Codable, Sendable {
     let hits: [Post]
 }
 
-nonisolated struct Post: Codable, Identifiable, Sendable {
+nonisolated struct Post: Codable, Identifiable, Equatable, Sendable {
     var id: String {
         return objectID
     }

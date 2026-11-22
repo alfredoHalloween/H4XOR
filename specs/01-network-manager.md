@@ -119,16 +119,17 @@ enum PostEndpoint: Endpoint {
 
 // H4XOR/Models/PostViewModel.swift
 enum LoadState: Equatable {
-    case idle, loading, loaded, failed(message: String)
+    case idle, loading, loaded([Post]), failed(message: String)
 }
+// Los posts viajan dentro de `.loaded`: el view model no tiene una propiedad `posts` aparte.
 ```
 
 Cambios en tipos existentes:
 
 - `PostDataManager`: `init(client: any NetworkClient = NetworkManager())`. `fetchPosts()` llama a `client.request(PostEndpoint.frontPage)`.
-- `PostViewModel`: `init(dataManager: PostDataManager = PostDataManager())`, `private(set) var state: LoadState = .idle`. `fetchPosts()` **reemplaza** `posts` en lugar de agregar.
+- `PostViewModel`: `init(dataManager: PostDataManager = PostDataManager())`, `private(set) var state: LoadState = .idle`. Se elimina la propiedad `posts`: `state` es la única fuente que lee la vista. `fetchPosts()` termina en `.loaded(results.hits)`, que **reemplaza** los posts anteriores en lugar de agregar.
 - `ContentView`: `init(viewModel: PostViewModel = PostViewModel())` guardado en `@State`.
-- `Results` y `Post` pasan a `nonisolated struct ... : Codable, Sendable`. Sin `nonisolated` su conformidad a `Decodable` queda aislada al main actor y no se puede usar desde `ResponseDecoder`. `Codable` (en lugar de `Decodable`) permite pasarlos como objetos dummy al mock. Sus campos no cambian.
+- `Results` pasa a `nonisolated struct ... : Codable, Sendable` y `Post` a `nonisolated struct ... : Codable, Identifiable, Equatable, Sendable`. `Post` necesita `Equatable` para que `LoadState` siga siendo `Equatable` con `.loaded([Post])`. Sin `nonisolated` su conformidad a `Decodable` queda aislada al main actor y no se puede usar desde `ResponseDecoder`. `Codable` (en lugar de `Decodable`) permite pasarlos como objetos dummy al mock. Sus campos no cambian.
 
 Convenciones:
 
@@ -142,7 +143,7 @@ Convenciones:
 2. Crear `H4XOR/Networking/ResponseDecoder.swift` con `decode` marcado `@concurrent`. Marcar `Results` y `Post` como `nonisolated` y `Sendable` en `PostData.swift`. Nada usa `ResponseDecoder` todavía. Compila sin avisos de concurrencia.
 3. Crear `H4XOR/Networking/NetworkClient.swift`. Mover `NetworkManager.swift` de `Models/` a `Networking/`, reescribirlo conforme a `NetworkClient` con `validate(data:response:)`, decodificar con `ResponseDecoder` y borrar el código antiguo comentado. Crear `H4XOR/Models/PostEndpoint.swift` y migrar `PostDataManager` a inyección + `PostEndpoint.frontPage`. La app compila y se comporta igual que antes.
 4. Crear `H4XOR/Networking/Mocks/MockNetworkClient.swift`, que también decodifica con `ResponseDecoder`, con formas de pasar datos mockeados: string JSON, archivo `.json` de un bundle u objeto dummy `Encodable`. Pasar `Results` y `Post` a `Codable`. Crear `Mocks/PostData+Dummy.swift` y `Mocks/JSON/front_page.json`. Compila y `front_page.json` aparece en `H4XOR.app`.
-5. Agregar `LoadState` e inyección a `PostViewModel`. Quitar `try?`: en `catch` pasa a `.failed(message:)`. Al cargar reemplaza `posts`. Compila.
+5. Agregar `LoadState` e inyección a `PostViewModel`. Quitar `try?`: en `catch` pasa a `.failed(message:)`. Al cargar pasa a `.loaded(hits)` y se elimina la propiedad `posts`. Agregar `Equatable` a `Post`. `ContentView` lee los posts desde `.loaded` con un puente temporal hasta el paso 6. Compila.
 6. Actualizar `ContentView`: `ProgressView` en `.loading`, lista en `.loaded`, `ContentUnavailableView` con botón "Reintentar" en `.failed`. Cambiar `#Preview` para usar `MockNetworkClient` con un JSON de ejemplo. Prueba manual: el preview muestra posts sin red. En el simulador se ve el estado de error, porque el `http://` sigue bloqueado por ATS.
 7. Agregar el target de tests `H4XORTests` (unit-test bundle, host `H4XOR`) en `H4XOR.xcodeproj/project.xcproj`, con la carpeta `H4XORTests/` vinculada como folder. Incluirlo en la acción de test del scheme. Crear un test trivial con Swift Testing. `xcodebuild test` pasa.
 8. Escribir los tests en `H4XORTests/`:
@@ -171,6 +172,7 @@ Convenciones:
 - [ ] La compilación no muestra avisos de concurrencia en los archivos de `H4XOR/Networking/` ni en `PostData.swift`.
 - [ ] `PostDataManager` y `PostViewModel` reciben sus dependencias por init con valores por defecto.
 - [ ] `PostViewModel` no contiene `try?`.
+- [ ] `PostViewModel` no tiene una propiedad `posts`; los posts solo se obtienen de `LoadState.loaded([Post])`.
 - [ ] Llamar `fetchPosts()` dos veces con el mock deja el mismo número de posts que una sola llamada.
 - [ ] El `#Preview` de `ContentView` muestra posts del mock sin acceso a red.
 - [ ] En el simulador, con el endpoint `http://`, la app muestra `ContentUnavailableView` con botón "Reintentar" en lugar de una lista vacía.
@@ -191,7 +193,9 @@ Convenciones:
 - **No:** form-urlencoded, multipart y `Data` cruda. Agregan superficie sin un caso de uso actual.
 - **Sí:** headers solo por endpoint. Auth e interceptores van en otra spec.
 - **Sí:** `LoadState` con vistas de carga y error. Elimina el fallo silencioso actual.
-- **Sí:** `fetchPosts()` reemplaza `posts`. Con "Reintentar" agregar duplicaría resultados.
+- **Sí:** `fetchPosts()` reemplaza los posts. Con "Reintentar" agregar duplicaría resultados.
+- **Sí:** los posts viajan como valor asociado de `.loaded([Post])`. Una sola fuente de verdad: no puede haber `state == .failed` con posts viejos visibles. (Cambio pedido durante el paso 5.)
+- **No:** `state` y `posts` como propiedades separadas. Obliga a la vista a leer dos cosas que pueden quedar desincronizadas.
 - **Sí:** Swift Testing en un nuevo target `H4XORTests`. Es el estándar moderno y encaja con async/await.
 - **Sí:** mantener `http://`. Seguimos en fase de pruebas; el simulador mostrará el estado de error.
 - **Sí:** borrar la implementación antigua comentada. Queda en el historial de git.

@@ -14,7 +14,7 @@ struct ContentView: View {
     
     var body: some View {
         NavigationView {
-            List(viewModel.posts) { post in
+            List(loadedPosts) { post in
                 HStack {
                     Text(String(post.points))
                     Text(post.title)
@@ -25,6 +25,11 @@ struct ContentView: View {
         .task {
             await viewModel.fetchPosts()
         }
+    }
+
+    // Puente temporal hasta el Paso 6, donde la vista hace `switch` sobre `viewModel.state`.
+    private var loadedPosts: [Post] {
+        if case .loaded(let posts) = viewModel.state { posts } else { [] }
     }
 }
 
